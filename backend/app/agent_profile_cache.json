@@ -1,0 +1,16 @@
+{
+  "weights": {
+    "load_weight": 1.18,
+    "interference_weight": 0.4839,
+    "occupancy_weight": 12.8,
+    "projected_weight": 11.6773,
+    "noise_weight": 0.3315,
+    "bandwidth_weight": 0.2313,
+    "demand_weight": 0.0166,
+    "critical_bias": 5.3412,
+    "high_bias": 9.0309
+  },
+  "version": "2026-03-30-cache-v3",
+  "episodes": 128,
+  "score": 176.4
+}

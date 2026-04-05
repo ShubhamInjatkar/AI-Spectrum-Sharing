@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+backend/app/live_network_dqn.pt
+backend/app/simulation_policy_cache.json

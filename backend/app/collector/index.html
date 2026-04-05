@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spectrum Collector</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="card">
+        <div class="hero">
+          <div>
+            <p class="eyebrow">REAL NETWORK MODE</p>
+            <h1>Spectrum Telemetry Collector</h1>
+            <p class="subtext">
+              Open this page on any phone or laptop to measure live latency, estimate throughput, and stream telemetry
+              to the AI-Driven Spectrum Sharing backend.
+            </p>
+          </div>
+          <div class="live-chip">
+            <span class="live-dot"></span>
+            Device publisher
+          </div>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">DEVICE SETUP</p>
+              <h2>Collector Controls</h2>
+            </div>
+            <div id="statusChip" class="status-chip status-idle">Idle</div>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Device ID</span>
+              <input id="deviceIdInput" type="text" maxlength="80" />
+            </label>
+            <label class="field">
+              <span>Interval</span>
+              <select id="intervalSelect">
+                <option value="1500">1.5s</option>
+                <option value="2000" selected>2.0s</option>
+                <option value="3000">3.0s</option>
+                <option value="5000">5.0s</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Probe Size</span>
+              <select id="probeSizeSelect">
+                <option value="32">32 KB</option>
+                <option value="64" selected>64 KB</option>
+                <option value="96">96 KB</option>
+                <option value="128">128 KB</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="startButton" class="primary">Start Streaming</button>
+            <button id="stopButton" class="secondary" disabled>Stop</button>
+          </div>
+        </section>
+
+        <section class="metrics-grid">
+          <article class="metric-card">
+            <p class="metric-label">Current Latency</p>
+            <p id="latencyValue" class="metric-value">-- ms</p>
+            <p class="metric-helper">Measured with live fetch timing.</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Estimated Throughput</p>
+            <p id="throughputValue" class="metric-value">-- Mbps</p>
+            <p class="metric-helper">Probe-based estimate, fallback to browser hint if needed.</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Samples Sent</p>
+            <p id="samplesValue" class="metric-value">0</p>
+            <p class="metric-helper">Successful telemetry uploads.</p>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">NETWORK RESPONSE</p>
+              <h2>Latest Backend Snapshot</h2>
+            </div>
+          </div>
+
+          <div class="snapshot-grid">
+            <article class="snapshot-card">
+              <p class="metric-label">Devices</p>
+              <p id="connectedDevicesValue" class="metric-value small">0</p>
+            </article>
+            <article class="snapshot-card">
+              <p class="metric-label">Derived Load</p>
+              <p id="loadValue" class="metric-value small">0.0%</p>
+            </article>
+            <article class="snapshot-card">
+              <p class="metric-label">Interference</p>
+              <p id="interferenceValue" class="metric-value small">0.0%</p>
+            </article>
+            <article class="snapshot-card">
+              <p class="metric-label">Noise</p>
+              <p id="noiseValue" class="metric-value small">0.0%</p>
+            </article>
+            <article class="snapshot-card">
+              <p class="metric-label">AI Decision</p>
+              <p id="decisionValue" class="metric-value small">Waiting</p>
+            </article>
+            <article class="snapshot-card">
+              <p class="metric-label">Confidence</p>
+              <p id="confidenceValue" class="metric-value small">0.0%</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">ACTIVITY</p>
+              <h2>Collector Log</h2>
+            </div>
+          </div>
+          <div id="logList" class="log-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
