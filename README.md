@@ -121,7 +121,7 @@ python tools/device_collector.py --base-url http://127.0.0.1:8000
 ## Notes
 
 - The frontend now uses a standard Vite project structure for easier development and hackathon iteration.
-- The UI includes the core hackathon experience: controls, metrics, channel cards, AI allocation output, charts, presets, and a live insights feed.
+- The UI includes the core hackathon experience: controls, metrics, channel cards, AI allocation output, charts, presets, and live network monitoring.
 - Live Network Mode uses real device telemetry only and keeps its logic separate from the simulation flow.
 
 ## Troubleshooting

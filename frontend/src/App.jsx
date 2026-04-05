@@ -109,11 +109,11 @@ function getLiveNetworkStatus(networkFrame) {
   }
 
   const metrics = networkFrame.metrics;
-  if (metrics.interference >= 48 || metrics.noise >= 36 || metrics.avg_packet_loss >= 4) {
+  if (metrics.interference >= 48 || metrics.noise >= 36 || metrics.load >= 72) {
     return "Critical";
   }
 
-  if (metrics.interference >= 28 || metrics.noise >= 18 || metrics.avg_packet_loss >= 1.5) {
+  if (metrics.interference >= 28 || metrics.noise >= 18 || metrics.load >= 48) {
     return "Warning";
   }
 
@@ -343,35 +343,6 @@ function StatusPanel({ status, message }) {
   );
 }
 
-function SmartInsightPanel({ insight, status }) {
-  const style = STATUS_STYLES[status];
-
-  return (
-    <div className={`rounded-3xl border p-3.5 ${style.panel}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-slate-300/70">Smart Insight</p>
-          <h3 className="mt-1.5 text-base font-semibold text-white">{insight.headline}</h3>
-        </div>
-        <StatusIndicator status={status} />
-      </div>
-
-      <p className="mt-2.5 text-sm leading-6 text-slate-200/90">{insight.summary}</p>
-
-      <div className="mt-3 grid gap-2">
-        {insight.points.map((item) => (
-          <div
-            key={item}
-            className="rounded-2xl border border-white/[0.08] bg-slate-950/25 px-3 py-2 text-sm leading-6 text-slate-300"
-          >
-            {item}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function AlertBar({ alert, isLiveMode, isSyncing, onToggle, toggleLabel, streamLocked = false }) {
   const style = STATUS_STYLES[alert.level];
   const icon = alert.level === "Critical" ? "🚨" : alert.level === "Warning" ? "⚠️" : "🟢";
@@ -443,7 +414,7 @@ function AllocationCard({ item }) {
 
         <div className="grid gap-2 sm:grid-cols-2">
           <StatTile label="Confidence" value={`${formatNumber(item.confidence)}%`} accent="text-cyan-100" />
-          <StatTile label="Gain" value={`${formatNumber(item.gain)} pts`} accent="text-pink-100" />
+          <StatTile label="Gain" value={`${formatNumber(item.gain)}%`} accent="text-pink-100" />
         </div>
       </div>
     </div>
@@ -693,7 +664,7 @@ export default function App() {
 
   useEffect(() => {
     setActiveMiddlePanel(appMode === "simulation" ? "spectrum" : "devices");
-    setActiveChart(appMode === "simulation" ? "usage" : "latency");
+    setActiveChart(appMode === "simulation" ? "usage" : "overview");
   }, [appMode]);
 
   const fetchSnapshot = async (nextControls = activeControls, mode = "scenario", reset = false) => {
@@ -1006,7 +977,7 @@ export default function App() {
     };
   }, [decision, simulation]);
 
-  const pressureChart = useMemo(() => {
+  const baselinePressureChart = useMemo(() => {
     if (!simulation) {
       return { labels: [], datasets: [] };
     }
@@ -1021,39 +992,60 @@ export default function App() {
         ).toFixed(1),
       ),
     );
-    const datasets = [
-      {
-        label: "Load",
-        data: simulation.timeseries.map((point) => point.usage),
-        borderColor: "#63f3ff",
-        backgroundColor: "rgba(99, 243, 255, 0.08)",
-        pointRadius: 0,
-        borderWidth: 2,
-        tension: 0.35,
-      },
-      {
-        label: "Interference",
-        data: simulation.timeseries.map((point) => point.interference),
-        borderColor: "#bc7cff",
-        backgroundColor: "rgba(188, 124, 255, 0.08)",
-        pointRadius: 0,
-        borderWidth: 2,
-        tension: 0.35,
-      },
-      {
-        label: "Noise",
-        data: baselineNoise,
-        borderColor: "#f59e0b",
-        backgroundColor: "rgba(245, 158, 11, 0.08)",
-        pointRadius: 0,
-        borderWidth: 2,
-        tension: 0.35,
-      },
-    ];
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Load",
+          data: simulation.timeseries.map((point) => point.usage),
+          borderColor: "#63f3ff",
+          backgroundColor: "rgba(99, 243, 255, 0.08)",
+          pointRadius: 0,
+          borderWidth: 2,
+          tension: 0.35,
+        },
+        {
+          label: "Interference",
+          data: simulation.timeseries.map((point) => point.interference),
+          borderColor: "#bc7cff",
+          backgroundColor: "rgba(188, 124, 255, 0.08)",
+          pointRadius: 0,
+          borderWidth: 2,
+          tension: 0.35,
+        },
+        {
+          label: "Noise",
+          data: baselineNoise,
+          borderColor: "#f59e0b",
+          backgroundColor: "rgba(245, 158, 11, 0.08)",
+          pointRadius: 0,
+          borderWidth: 2,
+          tension: 0.35,
+        },
+      ],
+    };
+  }, [simulation]);
 
-    if (decision) {
-      const reductionFactor = Math.max(0.5, 1 - decision.metrics.interference_reduction / 120);
-      datasets.push(
+  const aiPressureChart = useMemo(() => {
+    if (!simulation || !decision) {
+      return { labels: simulation?.timeseries?.map((point) => point.tick) ?? [], datasets: [] };
+    }
+
+    const labels = simulation.timeseries.map((point) => point.tick);
+    const baselineNoise = simulation.timeseries.map((point, index) =>
+      Number(
+        clampNumber(
+          simulation.config.noise_level * 0.62 + point.interference * 0.22 + Math.cos(index / 3.5) * 3.4,
+          0,
+          100,
+        ).toFixed(1),
+      ),
+    );
+    const reductionFactor = Math.max(0.5, 1 - decision.metrics.interference_reduction / 120);
+
+    return {
+      labels,
+      datasets: [
         {
           label: "AI load projection",
           data: simulation.timeseries.map((point) =>
@@ -1090,10 +1082,8 @@ export default function App() {
           borderDash: [6, 5],
           tension: 0.35,
         },
-      );
-    }
-
-    return { labels, datasets };
+      ],
+    };
   }, [decision, simulation]);
 
   const systemStatus = useMemo(() => getSystemStatus(simulation, decision), [decision, simulation]);
@@ -1114,43 +1104,6 @@ export default function App() {
     }
 
     return `Current baseline shows ${formatNumber(simulation.metrics.interference)}% interference with ${formatNumber(simulation.metrics.efficiency)}% efficiency before optimization.`;
-  }, [decision, simulation, streamEvent]);
-
-  const smartInsight = useMemo(() => {
-    if (!simulation) {
-      return {
-        headline: "Simulator standing by",
-        summary: "Run a scenario to generate congestion, throughput, and allocation signals.",
-        points: ["Controls define users, noise, and bandwidth for the next run."],
-      };
-    }
-
-    const busiestChannel = [...simulation.channels].sort((left, right) => right.interference - left.interference)[0];
-    const cleanestChannel = [...simulation.channels].sort((left, right) => left.interference - right.interference)[0];
-
-    if (decision) {
-      return {
-        headline: `${decision.agent.selected_channel} is the best immediate route`,
-        summary: streamEvent?.triggered_ai
-          ? `Threshold logic fired on ${streamEvent.channel}, so Spectrum Pilot is actively shifting pressure toward ${decision.agent.selected_channel} and keeping ${decision.agent.backup_channel} as fallback.`
-          : `Spectrum Pilot is monitoring drift, keeping ${decision.agent.selected_channel} as the top route and ${decision.agent.backup_channel} ready if a spike lands.`,
-        points: [
-          `AI Decision Confidence: ${formatNumber(decision.agent.confidence)}%.`,
-          `Reason: lowest interference ${decision.agent.reason_points[0]?.value}, highest headroom ${decision.agent.reason_points[1]?.value}, score gap ${decision.agent.reason_points[2]?.value}.`,
-          `Action: ${decision.agent.action_text}`,
-        ],
-      };
-    }
-
-    return {
-      headline: `${busiestChannel.id} is creating the most pressure`,
-      summary: `${busiestChannel.id} currently carries the heaviest interference, while ${cleanestChannel.id} has the cleanest conditions and the best chance to absorb extra demand.`,
-      points: [
-        `${formatNumber(simulation.metrics.interference)}% baseline interference is limiting overall efficiency.`,
-        `${formatNumber(simulation.metrics.fairness)}% fairness means channel load is not evenly distributed.`,
-        `Running AI allocation should redirect demand toward lower-pressure channels.`,
-      ],
-    };
   }, [decision, simulation, streamEvent]);
 
   const alertInfo = useMemo(() => {
@@ -1260,13 +1213,22 @@ export default function App() {
         key: "pressure",
         label: "Pressure",
         title: "Load, Interference, and Noise",
-        subtitle: "Baseline pressure compared with AI-optimized projections.",
-        labels: pressureChart.labels,
-        datasets: pressureChart.datasets,
+        subtitle: "Baseline load, interference, and noise across the current simulation.",
+        labels: baselinePressureChart.labels,
+        datasets: baselinePressureChart.datasets,
         yTitle: "Pressure (%)",
       },
+      {
+        key: "ai-pressure",
+        label: "AI Projection",
+        title: "AI Load, Interference, and Noise Projection",
+        subtitle: "Projected pressure curves after AI optimization is applied.",
+        labels: aiPressureChart.labels,
+        datasets: aiPressureChart.datasets,
+        yTitle: "Projection (%)",
+      },
     ],
-    [interferenceChart, networkScoreChart, pressureChart, usageChart],
+    [aiPressureChart, baselinePressureChart, interferenceChart, networkScoreChart, usageChart],
   );
 
   const activeChartPanel = chartPanels.find((panel) => panel.key === activeChart) ?? chartPanels[0];
@@ -1406,35 +1368,6 @@ export default function App() {
     },
     [networkFrame],
   );
-  const liveNetworkInsight = useMemo(() => {
-    if (!networkFrame?.devices?.length) {
-      return {
-        headline: "Live network mode is ready",
-        summary: "Live mode watches only real device telemetry, compares performance, and recommends actions without adding simulated values.",
-        points: [
-          "POST telemetry to /api/network/devices.",
-          "Required fields: device_id, latency_ms, throughput_mbps, jitter_ms, and packet_loss.",
-          "AI decisions update automatically from the incoming device stream.",
-        ],
-      };
-    }
-
-    const anchorDevice = [...networkFrame.devices].sort((left, right) => right.performance_score - left.performance_score)[0];
-    const congestedDevice = [...networkFrame.devices].sort((left, right) => left.performance_score - right.performance_score)[0];
-
-    return {
-      headline: `${anchorDevice.device_id} is the strongest live anchor`,
-      summary:
-        networkFrame.agent.status === "active"
-          ? `${congestedDevice.device_id} is the weakest performer right now, so the live decision engine is recommending action around ${anchorDevice.device_id}.`
-          : `${anchorDevice.device_id} currently has the cleanest observed profile while ${congestedDevice.device_id} is the device to keep watching.`,
-      points: [
-        `Observe: ${formatNumber(anchorDevice.latency_ms)} ms latency on ${anchorDevice.device_id}, ${formatNumber(congestedDevice.latency_ms)} ms on ${congestedDevice.device_id}.`,
-        `Compare: ${formatNumber(anchorDevice.performance_score)}% vs ${formatNumber(congestedDevice.performance_score)}%.`,
-        `Recommend: ${networkFrame.agent.action_text}`,
-      ],
-    };
-  }, [networkFrame]);
   const networkChartPanels = useMemo(() => {
     if (!networkFrame) {
       return [];
@@ -1442,10 +1375,10 @@ export default function App() {
 
     return [
       {
-        key: "usage",
-        label: "Usage",
-        title: "Live Load Over Time",
-        subtitle: "Computed load moving across real device updates.",
+        key: "overview",
+        label: "Overview",
+        title: "Live Network Overview",
+        subtitle: "One combined view of load, interference, noise, and performance across real device updates.",
         labels: networkFrame.timeseries.map((point) => point.tick),
         datasets: [
           {
@@ -1458,72 +1391,11 @@ export default function App() {
             borderWidth: 2,
             tension: 0.35,
           },
-        ],
-        yTitle: "Load (%)",
-        maxY: 100,
-      },
-      {
-        key: "interference",
-        label: "Interference",
-        title: "Interference vs Time",
-        subtitle: "Observed interference across the live network stream.",
-        labels: networkFrame.timeseries.map((point) => point.tick),
-        datasets: [
           {
             label: "Interference",
             data: networkFrame.timeseries.map((point) => point.interference),
             borderColor: "#f472b6",
             backgroundColor: "rgba(244, 114, 182, 0.08)",
-            pointRadius: 0,
-            borderWidth: 2,
-            tension: 0.35,
-          },
-        ],
-        yTitle: "Interference (%)",
-        maxY: 100,
-      },
-      {
-        key: "score",
-        label: "Network Score",
-        title: "Live Network Score",
-        subtitle: "Overall health computed from real device latency, jitter, loss, and throughput.",
-        labels: networkFrame.timeseries.map((point) => point.tick),
-        datasets: [
-          {
-            label: "Network score",
-            data: networkFrame.timeseries.map((point) => point.score),
-            borderColor: "#22d3ee",
-            backgroundColor: "rgba(34, 211, 238, 0.08)",
-            fill: true,
-            pointRadius: 0,
-            borderWidth: 2,
-            tension: 0.35,
-          },
-        ],
-        yTitle: "Score",
-        maxY: 100,
-      },
-      {
-        key: "pressure",
-        label: "Pressure",
-        title: "Load, Interference, and Noise",
-        subtitle: "Real telemetry pressure signals across the live network stream.",
-        labels: networkFrame.timeseries.map((point) => point.tick),
-        datasets: [
-          {
-            label: "Load",
-            data: networkFrame.timeseries.map((point) => point.load),
-            borderColor: "#63f3ff",
-            backgroundColor: "rgba(99, 243, 255, 0.08)",
-            pointRadius: 0,
-            borderWidth: 2,
-            tension: 0.35,
-          },
-          {
-            label: "Interference",
-            data: networkFrame.timeseries.map((point) => point.interference),
-            borderColor: "#bc7cff",
-            backgroundColor: "rgba(188, 124, 255, 0.08)",
             pointRadius: 0,
             borderWidth: 2,
             tension: 0.35,
@@ -1537,8 +1409,17 @@ export default function App() {
             borderWidth: 2,
             tension: 0.35,
           },
+          {
+            label: "Performance",
+            data: networkFrame.timeseries.map((point) => point.score),
+            borderColor: "#22d3ee",
+            backgroundColor: "rgba(34, 211, 238, 0.08)",
+            pointRadius: 0,
+            borderWidth: 2,
+            tension: 0.35,
+          },
         ],
-        yTitle: "Pressure (%)",
+        yTitle: "Percent",
         maxY: 100,
       },
     ];
@@ -1669,7 +1550,6 @@ export default function App() {
               networkFrame.metrics.interference,
             )}% and performance stays at ${formatNumber(networkFrame.metrics.score)}%.`
         : "Live network mode is standing by for real device telemetry.";
-  const currentInsight = appMode === "simulation" ? smartInsight : liveNetworkInsight;
   const currentMiddleSummary = useMemo(() => {
     if (appMode === "simulation") {
       const hottestChannel = simulation?.channels?.length
@@ -1874,10 +1754,6 @@ export default function App() {
                 <StatusPanel status={currentStatus} message={currentStatusMessage} />
               </div>
 
-              <div className="mt-3.5">
-                <SmartInsightPanel insight={currentInsight} status={currentStatus} />
-              </div>
-
               {currentError ? (
                 <div className="mt-3.5">
                   <ErrorCard error={currentError} />
@@ -1931,10 +1807,44 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {appMode === "live-network" && currentChartPanels.length === 1 ? (
+                <div className="glass-panel rounded-[30px] p-5">
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300/70">Live Analytics</p>
+                    <h2 className="mt-2 text-xl font-semibold text-white">{currentChartPanel?.title ?? "Analytics"}</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      {currentChartPanel?.subtitle ?? "Waiting for chart data."}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <StatTile label="Devices" value={String(networkFrame?.metrics.device_count ?? 0)} accent="text-cyan-100" />
+                    <StatTile
+                      label="Throughput"
+                      value={networkFrame ? `${formatNumber(networkFrame.metrics.throughput_mbps)} Mbps` : "n/a"}
+                      accent="text-emerald-100"
+                    />
+                    <StatTile
+                      label="Avg latency"
+                      value={networkFrame ? `${formatNumber(networkFrame.metrics.avg_latency_ms)} ms` : "0.0 ms"}
+                      accent="text-violet-100"
+                    />
+                  </div>
+
+                  <div className="mt-4">
+                    {currentChartPanel ? (
+                      <ChartPanel {...currentChartPanel} compact />
+                    ) : (
+                      <ChartPanel title="Analytics" subtitle="Waiting for data." labels={[]} datasets={[]} yTitle="Value" compact />
+                    )}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="mt-4 2xl:hidden">
+          <div className={`mt-4 ${appMode === "live-network" && currentChartPanels.length === 1 ? "hidden" : "2xl:hidden"}`}>
             <div className="glass-panel rounded-[28px] p-4 sm:p-5">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -1942,16 +1852,18 @@ export default function App() {
                   <h2 className="mt-2 text-xl font-semibold text-white">{currentChartPanel?.title ?? "Analytics"}</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-400">{currentChartPanel?.subtitle ?? "Waiting for chart data."}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {currentChartPanels.map((panel) => (
-                    <ChartToggle
-                      key={panel.key}
-                      label={panel.label}
-                      active={panel.key === currentChartPanel?.key}
-                      onClick={() => setActiveChart(panel.key)}
-                    />
-                  ))}
-                </div>
+                {currentChartPanels.length > 1 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {currentChartPanels.map((panel) => (
+                      <ChartToggle
+                        key={panel.key}
+                        label={panel.label}
+                        active={panel.key === currentChartPanel?.key}
+                        onClick={() => setActiveChart(panel.key)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -1992,19 +1904,21 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mt-4 hidden gap-4 2xl:grid 2xl:grid-cols-3">
-            {currentChartPanels.map((panel) => (
-              <ChartPanel
-                key={panel.key}
-                title={panel.title}
-                subtitle={panel.subtitle}
-                labels={panel.labels}
-                datasets={panel.datasets}
-                yTitle={panel.yTitle}
-                maxY={panel.maxY}
-              />
-            ))}
-          </div>
+          {!(appMode === "live-network" && currentChartPanels.length === 1) ? (
+            <div className={`mt-4 hidden gap-4 2xl:grid ${currentChartPanels.length > 1 ? "2xl:grid-cols-3" : "2xl:grid-cols-1"}`}>
+              {currentChartPanels.map((panel) => (
+                <ChartPanel
+                  key={panel.key}
+                  title={panel.title}
+                  subtitle={panel.subtitle}
+                  labels={panel.labels}
+                  datasets={panel.datasets}
+                  yTitle={panel.yTitle}
+                  maxY={panel.maxY}
+                />
+              ))}
+            </div>
+          ) : null}
         </section>
       </main>
     </div>
